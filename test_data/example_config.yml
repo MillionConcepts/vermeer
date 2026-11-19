@@ -1,0 +1,78 @@
+# Possible run config file, based on Nov 2026 SIS
+
+# Pins the version of the software to be run. If the
+# framework / pipeline software version does not match
+# value, the pipeline will not run.
+pipeline_software_version: "0.0.0"
+
+# Defines the version of the YAML schema being used.
+# Referenced by the orchestrator so that it knows how to 
+# parse the configuration.
+yaml_schema_version: "0.0.0"
+
+# Defines path or paths at which static calibration 
+# files are located.
+calibration_directory:
+  - /data/calibration
+
+# Defines a base path or paths at which input files will
+# be located. Enables defining relative paths in steps.
+default_input_directory:
+  - /data/images
+
+# Defines a base path or paths at which output files will
+# be located. Enables defining relative paths in steps.
+default_output_directory:
+  - /data/processed_images
+
+# If true, keep all intermediate products on disk 
+retain_on_failure: true
+
+# An ordered list of calibration processing steps to run.
+# We could list them a different way (eg [x, y, z]) 
+calibration_steps:
+  - id: bias   # we don't want people writing out function names in the YAML, so ID can be matched to a step?
+    step: bias_subtraction
+    config:
+      method: master_frame           
+    params:
+      clip_negative: false
+    # input only required for first step 
+    inputs:
+      image: example.tiff
+      # master bias in calibration dir
+      master_bias: bias/example_master_bias.fits       
+    outputs:
+      image: 01_bias/example_image.fits
+    retain:
+      image: false
+
+  - id: bad_pixel
+    step: bad_pixel_correction
+    config:
+      method: median_neighbor      
+      kernel_size: 3
+    params:
+      write_mask: true
+    inputs:
+    # if we don't specify input image here, default to 
+    # output of previous step? 
+      image: 01_bias/example_image.fits
+      bad_pixel_map: badpix/example_flagged.fits
+    outputs:
+      image: 02_badpix/example_image.fits
+      mask: 02_badpix/example_mask.fits
+    retain:
+      image: true # default true because it's the last step?
+      mask: true
+      
+# For each output, should it be retained on disk as an
+# intermediate product or treated as transient/temporary,
+# and deleted at the end of processing?
+# List is one option, or putting 'retain; beneath each 
+# step is another 
+retain_list: []
+
+
+
+
