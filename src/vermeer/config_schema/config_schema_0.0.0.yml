@@ -47,4 +47,28 @@ retain_on_failure:
 calibration_steps:
   type: list
   required: True
+  step_requirements:
+    id:
+      type: str
+      required: False
+    step:
+      type: str
+      required: True
+    params:
+      type: dict
+      required: False
+    inputs:
+      type: dict
+      required: False
+    outputs:
+      type: dict
+      required: False
+    retain:
+      type: dict
+      required: False
 
+# Prefix for adding to filenames instead of standard
+# naming convention
+output_prefix:
+  type: str
+  required: False
