@@ -17,7 +17,7 @@ class Param:
 class Step:
     """Base class for processing steps. Based on STPIPE Step Class for JWST."""
 
-    all_steps = {} # how to gather all steps somewehere? stpipe uses an aggregator
+    all_steps = {}
     params = {}
     inputs = ()
     outputs = ()
@@ -27,6 +27,15 @@ class Step:
         self.hardware = hardware
         for key, value in params.items():
             setattr(self, key, value)
+
+    def __init_subclass__(cls, **kwargs):
+        """ For every step subclass, load to step registry."""
+        super().__init_subclass__(**kwargs)
+        name = "".join("_" + c.lower() if c.isupper()
+                       else c for c in cls.__name__)
+        cls.step_name = name.lstrip("_")
+        # this is how we check if a step is a real step
+        Step.all_steps[cls.step_name] = cls
 
     def run(self, **inputs):
         result = self.process(**inputs)

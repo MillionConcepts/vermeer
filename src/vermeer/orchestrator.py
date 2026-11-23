@@ -7,7 +7,6 @@
 #       * Zack's work may be useful here
 # 2. fill in missing parts of the label that have defaults / are not required
 #    to be input by the user but are needed for a run
-
 # dry run validation section
 # 3. check all required files that won't be made by the imaging chain exist
 # 4. check all required files will exist by the time a step needs them
@@ -15,13 +14,40 @@
 #          to show why someone's configuration might not work etc
 # 5. check that each step can be run for the specific hardware configuration
 #    given? kind of same thing as check required cal files
-
 # run section
 # 6. assign a random run ID (this could happen at step 2 tbh)
 # 7. make a folder for this random run ID for outputs or intermediate products
 # 8. step by step, read input, apply calibration, validate completion,
 #    write relevant outputs, retain intermediate products / outputs as
 #    requested
+from typing import Literal
+
+def execute_pipeline(
+    run_type: Literal["validate", "run"],
+    config_file: str,
+):
+    from config_file import PipelineConfig
+
+    # build PipelineConfig class from config file
+    pipeline_config = PipelineConfig(config_file)
+
+    if run_type == "validate":
+        return pipeline_config
+        # write to new config file after validate?
+
+    # make new folder for run here? or before validate?
+
+    if run_type == "run":
+        return run_pipeline(pipeline_config)
+
+    return None
+
+
+def run_pipeline(pipeline_config):
+    # loop through steps in pipeline_config, writing outputs as needed
+    # also do logging
+    return
+
 
 
 

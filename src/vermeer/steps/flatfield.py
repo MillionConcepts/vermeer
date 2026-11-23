@@ -12,7 +12,8 @@ class FlatField(Step):
     outputs = {'image'}
 
     def process(self, image):
-        flat = DataModel.read(self.flatfield).data  # will open flat file with pdr probs
+        # will open flat file with pdr probs
+        flat = DataModel.read(self.flatfield).data
         if self.flat_op == 'multiply':
             data = image.data * flat
         elif self.flat_op == 'divide':

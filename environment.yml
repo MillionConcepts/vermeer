@@ -1,0 +1,13 @@
+name: vermeer
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.14
+  - pyyaml
+  - numpy
+  - scipy
+  - astropy
+  - pdr  # for loading files
+  - pip
+  - pip:
+      - -e .
