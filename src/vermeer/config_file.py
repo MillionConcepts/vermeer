@@ -3,46 +3,37 @@ from pathlib import Path
 import pyyaml as yaml
 from . import steps
 from .step import Step
-from . import __version__
+from . import __version__, SCHEMA_DIR
 from errors import ConfigError
 
 
 class PipelineConfig:
     """
-    Class for the configuration of a whole run. Stores, and adds to, pipeline
-    configurations indicated in the original config file.
+    Class for the configuration of a whole run. Stores and adds to pipeline
+    configurations indicated in the original config file. Supplements with
+    defaults in hardware config file or
     """
 
     def __init__(self, config_file):
 
         # generate random run ID version here?
+        # self.run_ID =
 
         self.config_file = Path(config_file)
         self.config_problems = []
 
         config = read_yaml(self.config_file)
 
-        # add version check here, we don't want to get very far
-        # version check software plus config schema
+        # load yaml schema file
+        self.schema_version = str(config.get("yaml_schema_version"))
+        self.schema_path = SCHEMA_DIR / f"config_schema_{self.schema_version}.yaml"
+        self.schema = read_yaml(self.schema_path)
 
-        for key in config:
-            # could list required keys in this file or read them in as another
-            # step from a config schema yaml file (as indicated by the SIS)
-            if key not in CONFIG_SCHEMA:
-                self.config_problems.append(f"'{key}' is an unknown key.")
+        # CHECK config against schema, then set attributes based on config
+        # check type & if required or not
+        for key in config etc
 
-        # if these are variable according to config schema versions...idk
-        # what to do
-
-        # Paths
-        self.calibration_dir =
-        self.input_dir =
-        self.output_dir =
-
-        # Run settings
-        self.retain_on_failure =
-        self.write_intermediaries =
-
+        # check config steps against step subclasses, set default
         # Each processing step listed gets loaded
         step_list = config.get("calibration_steps")
         if not step_list:
@@ -54,7 +45,9 @@ class PipelineConfig:
         for position, step in enumerate(step_list, start=1):
             self.add_step(position, step)
 
-        # alert to problems?
+
+
+        # Alert to all problems gathered
         if self.problems:
             raise SOMETHING
 

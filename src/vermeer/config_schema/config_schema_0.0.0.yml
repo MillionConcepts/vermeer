@@ -1,0 +1,50 @@
+
+
+# Defines the version of the YAML schema being used.
+#Referenced by the orchestrator so that it knows how to
+#parse the configuration.
+schema_verison: "0.0.0"
+
+# Pins the version of the software to be run. If the
+# framework / pipeline software version does not match
+# value, the pipeline will not run.
+pipeline_software_version:
+  type: str
+  required: True
+
+# Defines the version of the YAML schema being used.
+# Referenced by the orchestrator so that it knows how to
+# parse the configuration.
+yaml_schema_version:
+  type: str
+  required: True
+
+# Defines path or paths at which static calibration
+# files are located.
+calibration_directory:
+  type: Path
+  required: True
+
+# Defines a base path or paths at which input files will
+# be located. Enables defining relative paths in steps.
+default_input_directory:
+  type: Path
+  required: True
+
+# Defines a base path or paths at which output files will
+# be located. Enables defining relative paths in steps.
+default_output_directory:
+  type: Path
+  required: True
+
+# If true, keep all intermediate products on disk
+retain_on_failure:
+  type: bool
+  required: True
+
+# An ordered list of calibration processing steps to run.
+# We could list them a different way (eg [x, y, z])
+calibration_steps:
+  type: list
+  required: True
+
