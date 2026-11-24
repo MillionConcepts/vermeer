@@ -33,9 +33,8 @@ retain_on_failure: true
 calibration_steps:
   - id: bias   # we don't want people writing out function names in the YAML, so ID can be matched to a step?
     step: bias_subtraction
-    config:
-      method: master_frame           
     params:
+      method: master_frame
       clip_negative: false
     # input only required for first step 
     inputs:
@@ -49,10 +48,9 @@ calibration_steps:
 
   - id: bad_pixel
     step: bad_pixel_correction
-    config:
+    params:
       method: median_neighbor      
       kernel_size: 3
-    params:
       write_mask: true
     inputs:
     # if we don't specify input image here, default to 
