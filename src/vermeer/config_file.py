@@ -36,8 +36,16 @@ class PipelineConfig:
         self.schema = read_yaml(self.schema_path)
 
         # checks basic config things, then set attributes from config
+        #TODO: move check_config_schema to inside PipelineConfig so we don't
+        # have to collect problems separately
         config, problems = check_config_schema(config, self.schema)
         self.config_problems.extend(problems)
+
+        # set dirs
+        #TODO? modify output dir to point to run folder with run ID in the name?
+        self.default_output_directory = config.get("default_output_directory")
+        self.default_input_directory = config.get("default_input_directory")
+        self.calibration_directory = config.get("calibration_directory")
 
         for key, value in config.items():
             # this will overwrite anything previously set (e.g. schema_version)
@@ -51,11 +59,13 @@ class PipelineConfig:
         self.manifest = {}
 
         # check config steps against step subclasses, set default
-        # Each processing step listed gets loaded
         step_list = config.get("calibration_steps") or []
         if not step_list:
-            self.config_problems.append("calibration_steps is empty, there"
-                                        "are no processing steps to run.")
+            self.config_problems.append(
+                "calibration_steps is empty, there are no processing steps to"
+                " run."
+            )
+        # build list of steps to run from calibration_steps
         self.steps = []
         for position, step in enumerate(step_list, start=1):
             self.add_step(position, step)
@@ -65,6 +75,8 @@ class PipelineConfig:
 
         # check each step in the config has the required components. this is
         # a check against the config YAML schema, not each step subclass.
+        #TODO: move check_config_schema to inside PipelineConfig so we don't
+        # have to collect problems separately
         step, problems = check_config_schema(
             step,
             self.schema["calibration_steps"]["step_requirements"]
@@ -77,13 +89,17 @@ class PipelineConfig:
         else:
             step_id = step.get("id")
         if step.get("id") in [s.id for s in self.steps]:
-            self.config_problems.append(f"{step_id}: id is used twice")
+            self.config_problems.append(
+                f"{step_id}: step ID, {step_id}, is used twice."
+            )
 
         # check the steps listed are steps that exist, get Step subclass of
         # the specified step
         step_class = Step.all_steps.get(step.get("step"))
         if step_class is None:
-            self.config_problems.append(f"'{step.get('step')}' step unknown.")
+            self.config_problems.append(
+                f"{step_id}:'{step.get('step')}' step unknown."
+            )
             return
 
         # load all step parameters, using defaults where required
@@ -152,21 +168,30 @@ class PipelineConfig:
         consists of all inputs / outputs of previous steps.
         """
         # case in which the input is the output of a previous step
-        as_output = (self.default_output_directory / input_key).resolve()
-        if as_output in self.manifest:
-            return self.manifest[as_output]
+        is_output = (self.default_output_directory / input_key).resolve()
+        if is_output in self.manifest:
+            return self.manifest[is_output]
 
-        # check for input file in inputs folder
-        path = self.find_file(input_key)
+        # check if path is complete, then check for input file in given
+        # inputs folder + cal folder
+        path = self.find_ref_file(input_key)
 
         # if an input file has already been used by a previous step, it will
         # be in the manifest
         if path not in self.manifest:
             self.manifest[path] = DataRef(path, write=False)
 
-        self.read_as_file[as_output] = self.manifest[path]
         return self.manifest[path]
-        return
+
+
+    def find_ref_file(self, input_key):
+        path = Path(input_key)
+        if path.is_absolute():
+            return path
+        for folder in (self.default_input_directory, self.calibration_directory):
+            if (folder/path).is_file():
+                return (folder/path).resolve()
+        return (self.default_input_directory/path).resolve()
 
 
     def get_outputs(
@@ -264,8 +289,9 @@ class PipelineConfig:
             # people to think their config file is working as expected when a
             # default is being set instead
             if key not in step_class.params:
-                self.config_problems.append(f"Unknown param '{key}' in "
-                                            f"{step_id}.")
+                self.config_problems.append(
+                    f"{step_id}: Unknown param '{key}' in."
+                )
 
         for key, param in step_class.params.items():
             if key in config_params:
@@ -277,17 +303,19 @@ class PipelineConfig:
                     value = param.default
                 else:
                     # no default for required param that wasn't set
-                    self.config_problems.append(f"Param '{key}' is required "
-                                                f"in {step_id}, there are no"
-                                                f" defaults.")
+                    self.config_problems.append(
+                        f"{step_id}: Param '{key}' is required, there are no"
+                        f" defaults."
+                    )
                     continue
             else:
                 # if it's not required & not set, we don't care about it
                 continue
             value, problem = param.check(value)
             if problem:
-                self.config_problems.append(f"Param '{key}' in {step_id}: "
-                                            f"{problem}")
+                self.config_problems.append(
+                    f"{step_id}: Param '{key}' {problem}"
+                )
             cleaned_params[key] = value
         return cleaned_params
 
