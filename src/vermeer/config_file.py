@@ -1,6 +1,6 @@
 
 from pathlib import Path
-import pyyaml as yaml
+import yaml
 from . import steps
 from .step import Step
 from . import __version__, SCHEMA_DIR
@@ -40,7 +40,7 @@ class PipelineConfig:
 
         # check config steps against step subclasses, set default
         # Each processing step listed gets loaded
-        step_list = config.get("calibration_steps")
+        step_list = config.get("calibration_steps") or []
         if not step_list:
             self.config_problems.append("calibration_steps is empty, there"
                                         "are no processing steps to run.")
@@ -63,7 +63,10 @@ class PipelineConfig:
         self.config_problems.extend(problems)
 
         # step ID must be unique for each step in calibration pipeline
-        step_id = step["id"]
+        if 'id' not in step.keys():
+            step_id = step["step"]
+        else:
+            step_id = step["id"]
         if step["id"] in [s.id for s in self.steps]:
             self.config_problems.append(f"{step_id}: id is used twice")
 
@@ -75,12 +78,30 @@ class PipelineConfig:
             return
 
         params = self.get_params(
-            step_class,
-            step['params'],
-            position)
-        inputs = self.get_inputs(step_class, step, position)
-        outputs = self.get_outputs(step_class, step, position)
-        retain = self.get_retain(step_class, step, position)
+                step_class,
+                step['params'],
+                step_id
+            )
+        inputs = self.get_inputs(step_class, step['inputs'], step_id)
+
+        #TODO: I like this way of loading inputs and outputs but in terms of
+        # outputs, the output paths, what needs to be saved/written, kept
+        # in memory, etc. between steps, maybe outputs / retain should
+        # be contained in an output class? or as part of the DataModel class?
+        # so for every input / output we create a DataModel class that
+        # we call to read / write according to their params in the orchestrator
+        # loop?
+        # in which case, PipelineConfig is massive....
+        # so I think it's better to keep all data in run specific dict when
+        # running happens and the corresponding keys are tracked via
+        # PipelineConfig products, which contains all expected input and output
+        # info, including when to write, keep in memory, etc each one.
+        # and that will be used to modify the run specific dict of images/data
+        # during the pipeline loop
+        # so products of pipelineconfig will be like a card catalog for
+        # checking data in / out, return by date etc
+        outputs = self.get_outputs(step_class, step['outputs'], step_id)
+        retain = self.get_retain(step_class, step['retain'], step_id)
 
         self.steps.append(step_class(
             step_id,
@@ -89,6 +110,72 @@ class PipelineConfig:
             outputs,
             retain
         ))
+
+    def get_inputs(
+            self,
+            step_class,
+            config_inputs,
+            step_id
+    ):
+        """
+        Check inputs in config against step class definitions, use defaults
+        if required parameters are not filled in. I think most input files
+        would be required.
+        """
+        cleaned_inputs = {}
+
+        for key in config_inputs:
+            if key not in step_class.inputs:
+                self.config_problems.append(f"Unknown input '{key}' in "
+                                            f"{step_id}")
+        for key in step_class.inputs:
+            if key in config_inputs:
+                cleaned_inputs[key] = config_inputs[key]
+            # add an elif for checking the hardware config file (which hasn't
+            # been loaded yet / doesn't have a given format)
+            else:
+                self.config_problems.append(f"{step_id}: Input '{key}' is "
+                                            f"required")
+        return cleaned_inputs
+
+
+    def get_outputs(
+            self,
+            step_class,
+            config_inputs,
+            step_id
+    ):
+        """
+        Check outputs in config against step class definitions, use defaults
+        if required parameters are not filled in.
+
+        Output files may or may not be written, they also may or may not be
+        kept in memory.
+        """
+        #TODO: add info on output writing / retaining here? or separate
+        # loader? or should we scrap this way of loading and make outputs
+        # part of the. see above to do.
+        cleaned_ouputs = {}
+
+        for key in config_inputs:
+            if key not in step_class.inputs:
+                self.config_problems.append(f"Unknown input '{key}' in "
+                                            f"{step_id}")
+        for key in step_class.inputs:
+            if key in config_inputs:
+                cleaned_ouputs[key] = config_inputs[key]
+            else:
+                # make default output path here?
+                cleaned_ouputs[key] = make_out_path(step_id, key)
+        return cleaned_ouputs
+
+
+    def get_retain(self, step_class, step, step_id):
+        # check step subclass retain rules
+        # modify to all true if retain_on_failure
+        # write or not write?
+        return
+
 
     def get_params(
             self,
@@ -133,22 +220,6 @@ class PipelineConfig:
             cleaned_params[key] = value
         return cleaned_params
 
-    def get_inputs(self, step_class, step, position):
-        # check step subclass inputs
-        # check if required files exist or not
-        return
-
-    def get_outputs(self, step_class, step, position):
-        # check step subclass outputs
-        # make output filenames with output prefix
-        return
-
-    def get_retain(self, step_class, step, position):
-        # check step subclass retain rules
-        # modify to all true if retain_on_failure
-        # write or not write?
-        return
-
 
 def write_config(pipeline_config):
     # write config file in yaml format
@@ -157,7 +228,7 @@ def write_config(pipeline_config):
 
 
 def read_yaml(yaml_path):
-    if not read_yaml(yaml_path).is_file():
+    if not yaml_path.is_file():
         raise ConfigError(f"No config file was found at: {yaml_path}")
     try:
         config = yaml.safe_load(yaml_path.read_text())

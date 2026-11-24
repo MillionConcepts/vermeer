@@ -1,5 +1,6 @@
 
-
+#TODO: make class Param actually applicable to all YAML settings?
+# so check could be used on other parts of the config?
 class Param:
     def __init__(
             self,
