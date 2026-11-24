@@ -1,6 +1,6 @@
 
 from ..step import Step, Param
-from ..datamodel import DataModel # doesn't exist yet
+from ..data_model import DataModel # doesn't exist yet
 
 class FlatField(Step):
     """ Flat field an image using a pre-existing flat field."""

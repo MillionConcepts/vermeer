@@ -33,9 +33,19 @@ class Step:
     inputs = ()
     outputs = ()
 
-    def __init__(self, name, params, hardware):
+    def __init__(
+            self,
+            name,
+            params,
+            hardware=None,
+            input_refs=None,
+            output_refs=None
+    ):
         self.name = name
         self.hardware = hardware
+        self.params = params
+        self.input_refs = input_refs or {}    # dicts of DataRef objects
+        self.output_refs = output_refs or {}  # dicts of DataRef objects
         for key, value in params.items():
             setattr(self, key, value)
 
