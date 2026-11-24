@@ -1,10 +1,19 @@
 
 
 class Param:
-    def __init__(self, type, options=None, is_file=False):
+    def __init__(
+            self,
+            type,
+            options=None,
+            is_file=False,
+            required=False,
+            default=None,
+    ):
         self.type = type
         self.options = options
         self.is_file = is_file
+        self.required = required
+        self.default = default
 
     def check(self, val):
         if type(val) is not self.type:
@@ -13,6 +22,7 @@ class Param:
         if self.options and val not in self.options:
             return val, f"{val} not in list of options: {self.options}."
         return val, None
+
 
 class Step:
     """Base class for processing steps. Based on STPIPE Step Class for JWST."""

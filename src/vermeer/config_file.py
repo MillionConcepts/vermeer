@@ -74,7 +74,10 @@ class PipelineConfig:
             self.config_problems.append(f"'{step['step']}' step unknown.")
             return
 
-        params = self.get_params(step_class, step)
+        params = self.get_params(
+            step_class,
+            step['params'],
+            position)
         inputs = self.get_inputs(step_class, step, position)
         outputs = self.get_outputs(step_class, step, position)
         retain = self.get_retain(step_class, step, position)
@@ -87,10 +90,48 @@ class PipelineConfig:
             retain
         ))
 
-    def get_params(self, step_class, step, position):
-        # check step subclass params
-        # use defaults if not defined by config file
-        return
+    def get_params(
+            self,
+            step_class,
+            config_params,
+            step_id
+    ):
+        """
+        Check parameter against step class definitions, use defaults if
+        required parameter are not filled in.
+        """
+        cleaned_params = {}
+        for key in config_params:
+            # it's possible a parameter key was misspelled etc., we don't want
+            # people to think their config file is working as expected when a
+            # default is being set instead
+            if key not in step_class.params:
+                self.config_problems.append(f"Unknown param '{key}' in "
+                                            f"{step_id}.")
+
+        for key, param in step_class.params.items():
+            if key in config_params:
+                value = config_params[key]
+            elif param.required:
+                if param.default is not None:
+                    # if required, use an existing default
+                    # may want to add hardware config check here?
+                    value = param.default
+                else:
+                    # no default for required param that wasn't set
+                    self.config_problems.append(f"Param '{key}' is required "
+                                                f"in {step_id}, there are no"
+                                                f" defaults.")
+                    continue
+            else:
+                # if it's not required & not set, we don't care about it
+                continue
+            value, problem = param.check(value)
+            if problem:
+                self.config_problems.append(f"Param '{key}' in {step_id}: "
+                                            f"{problem}")
+            cleaned_params[key] = value
+        return cleaned_params
 
     def get_inputs(self, step_class, step, position):
         # check step subclass inputs
