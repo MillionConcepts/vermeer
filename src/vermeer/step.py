@@ -35,13 +35,13 @@ class Step:
 
     def __init__(
             self,
-            name,
+            step_id,
             params,
-            hardware=None,
             input_refs=None,
-            output_refs=None
+            output_refs=None,
+            hardware=None,
     ):
-        self.name = name
+        self.id = id
         self.hardware = hardware
         self.params = params
         self.input_refs = input_refs or {}    # dicts of DataRef objects

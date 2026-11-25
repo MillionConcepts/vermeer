@@ -1,12 +1,11 @@
 
 from pathlib import Path
 import yaml
-from . import steps
 from .step import Step
 from . import __version__, SCHEMA_DIR
-from errors import ConfigError
+from .errors import ConfigError
 from datetime import datetime
-from data_ref import DataRef
+from .data_ref import DataRef
 
 
 class PipelineConfig:
@@ -19,11 +18,15 @@ class PipelineConfig:
     def __init__(self, config_file):
 
         # generate random run ID version here? time or more random than that?
-        self.run_ID = datetime.now.strftime("%Y%m%dT%H%M%SZ")
+        self.run_ID = datetime.now().strftime("%Y%m%dT%H%M%SZ")
 
         # read config file
         self.config_file = Path(config_file)
         config = read_yaml(self.config_file)
+
+        #TODO: reformat this as a dict so that the part of the config each
+        # raised problem is referring to is it's own key, so outputting the
+        # problems can be nicely formatted
         self.config_problems = []
 
         # software version from config
@@ -68,10 +71,10 @@ class PipelineConfig:
         # build list of steps to run from calibration_steps
         self.steps = []
         for position, step in enumerate(step_list, start=1):
-            self.add_step(position, step)
+            self.add_step(step)
 
 
-    def add_step(self, position, step):
+    def add_step(self, step):
 
         # check each step in the config has the required components. this is
         # a check against the config YAML schema, not each step subclass.
@@ -105,7 +108,7 @@ class PipelineConfig:
         # load all step parameters, using defaults where required
         params = self.get_params(
                 step_class,
-                step['params'],
+                step.get("params") or {},
                 step_id
             )
         # make DataRef object for all inputs or check for pre-existing
@@ -120,7 +123,6 @@ class PipelineConfig:
             step.get("outputs") or {},
             step.get("retain") or {},
             step_id,
-            position
         )
         self.steps.append(step_class(
             step_id,
@@ -151,7 +153,7 @@ class PipelineConfig:
         cleaned_inputs = {}
         for key in step_class.inputs:
             if key in config_inputs:
-                ref = self.find_ref(config_inputs[key])
+                ref = self.find_ref(config_inputs[key], step_id)
                 ref.used_by.append(step_id)  # track which steps use the input
                 cleaned_inputs[key] = ref
             else:
@@ -162,7 +164,7 @@ class PipelineConfig:
         return cleaned_inputs
 
 
-    def find_ref(self, input_key):
+    def find_ref(self, input_key, step_id):
         """
         Check if an input key ref exists in the manifest, which at this point
         consists of all inputs / outputs of previous steps.
@@ -181,17 +183,21 @@ class PipelineConfig:
         if path not in self.manifest:
             self.manifest[path] = DataRef(path, write=False)
 
+        if not path.is_file():
+        # input file cannot be found / doesn't exist from previous step
+            self.config_problems.append(
+                f"{step_id}: Input file at {path} doesn't exist."
+            )
+
         return self.manifest[path]
 
 
     def find_ref_file(self, input_key):
         path = Path(input_key)
-        if path.is_absolute():
-            return path
         for folder in (self.default_input_directory, self.calibration_directory):
-            if (folder/path).is_file():
-                return (folder/path).resolve()
-        return (self.default_input_directory/path).resolve()
+            if (folder / path).is_file():
+                return (folder / path).resolve()
+        return path
 
 
     def get_outputs(
@@ -199,8 +205,8 @@ class PipelineConfig:
             step_class,
             config_outputs,
             config_retain,
-            step_id,
-            position,
+            step_id
+            ,
     ):
         """
         Check outputs in config against step class definitions, use defaults
@@ -230,12 +236,11 @@ class PipelineConfig:
         for key in step_class.outputs:
             if key in config_outputs:
                 # if the config gives an output path to use
-                path = (self.default_output_directory /
-                        config_outputs[key]).resolve()
+                path = (self.default_output_directory / config_outputs[key]).resolve()
             else:
                 # if the config doesn't give an output path to use, make unique
                 # one for step & output & with a prefix
-                path = self.get_output_path(position, step_id, key)
+                path = self.get_output_path(step_id, key)
             if path in self.manifest:
                 preexisting = self.manifest[path]
                 if preexisting.made_by:
@@ -261,7 +266,7 @@ class PipelineConfig:
         return cleaned_outputs
 
 
-    def get_output_path(self, position, step_id, key):
+    def get_output_path(self, step_id, key):
         """
         Default output paths are a combo of the step and output key defined
         by step class.
@@ -269,8 +274,9 @@ class PipelineConfig:
         Use output prefix at beginning if defined in config file.
         """
         prefix = getattr(self, "output_prefix", "")
-        return f"{prefix}_{step_id}_{key}.fits" if prefix else \
+        filename = f"{prefix}_{step_id}_{key}.fits" if prefix else \
             f"{step_id}_{key}.fits"
+        return (self.default_output_directory / filename).resolve()
 
 
     def get_params(
@@ -320,12 +326,6 @@ class PipelineConfig:
         return cleaned_params
 
 
-def write_config(pipeline_config):
-    # write config file in yaml format
-    # from PipelineConfig class
-    return
-
-
 def read_yaml(yaml_path):
     if not yaml_path.is_file():
         raise ConfigError(f"No config file was found at: {yaml_path}")
@@ -369,9 +369,33 @@ def check_config_schema(config, schema):
     return checked, problems
 
 
+SCHEMA_TYPE_OPTIONS = {
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
+}
+
 def check_config_type(config_value, config_type, key):
-    """ Check configured value is type expected by config YML schema."""
-    if type(config_value) is not config_type:
-        return config_value, (f"expected {config_type}, "
-                              f"got {type(config_value).__name__} for {key}")
+    """
+    Check type of given config against config YAML. Reference a dict because
+    types in the YAML are written as strings.
+    """
+    # path case
+    if config_type == "Path":
+        if not isinstance(config_value, str):
+            return config_value, (
+                f"expected a path for {key}, got "
+                f"{type(config_value).__name__}."
+            )
+        return Path(config_value), None
+
+    # other types that aren't strings
+    if type(config_value) is not SCHEMA_TYPE_OPTIONS[config_type]:
+        return config_value, (
+            f"expected {config_type} for {key}, got "
+            f"{type(config_value).__name__}."
+        )
     return config_value, None
