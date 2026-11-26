@@ -25,17 +25,34 @@ from typing import Literal
 def execute_pipeline(
     run_type: Literal["validate", "run"],
     config_file: str,
+    verbose: bool = False,
 ):
     from config_file import PipelineConfig
 
     # build PipelineConfig class from config file
     pipeline_config = PipelineConfig(config_file)
 
-    if run_type == "validate":
-        return pipeline_config
-        # write to new config file after validate?
+    if pipeline_config.config_problems:
+        # write problems to an output file. if there are errors just reading
+        # the config file, those will have raised a ConfigError
+        if verbose:
+            print(f"Problems were identified while validating the config file."
+                  f" Writing pipeline problems to "
+                  f"{pipeline_config.problem_report_path}.")
+        pipeline_config.write_problems()
 
-    # make new folder for run here? or before validate?
+    # write modified config / config to be used by pipeline out as well
+    if verbose:
+        print(f"Writing the modified config file to "
+              f"{pipeline_config.modified_config_path}.")
+    #TODO: make a writer to output the modified config / pipeline_config
+    # in YAML format that's 1:1 with input (ie we could read it back in).
+    # some attributes would have to be ignored? like run_id? not sure what to
+    # do about that.
+
+    if run_type == "validate":
+        # exit here, we don't want to actually run the pipeline
+        return 1
 
     if run_type == "run":
         return run_pipeline(pipeline_config)
@@ -46,7 +63,7 @@ def execute_pipeline(
 def run_pipeline(pipeline_config):
     # loop through steps in pipeline_config, writing outputs as needed
     # also do logging
-    return
+    return 1
 
 
 
